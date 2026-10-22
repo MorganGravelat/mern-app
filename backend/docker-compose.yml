@@ -1,0 +1,27 @@
+# Database for the work order app.
+# Start:  docker compose up -d      Stop: docker compose down
+# Reset (deletes data, re-runs mongo-init.js):  docker compose down -v && docker compose up -d
+#
+# The API service (Express) will be added here later, like in the Cards tutorial.
+
+services:
+  mongodb:
+    image: docker.io/mongo:7.0
+    container_name: workorder_mongodb
+    restart: unless-stopped
+    ports:
+      # 127.0.0.1 = only reachable from this computer (Compass works, the internet can't)
+      - "127.0.0.1:27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: WorkOrderDB
+    volumes:
+      - workorder_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  workorder_data:
