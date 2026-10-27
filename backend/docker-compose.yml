@@ -1,8 +1,10 @@
-# Database for the work order app.
-# Start:  docker compose up -d      Stop: docker compose down
+# Local development: MongoDB, plus the API if you want to run it in Docker too.
+# Database only:   docker compose up -d mongodb      (then `npm run dev` for the API)
+# Everything:      docker compose up -d --build
+# Stop:            docker compose down
 # Reset (deletes data, re-runs mongo-init.js):  docker compose down -v && docker compose up -d
 #
-# The API service (Express) will be added here later, like in the Cards tutorial.
+# For the server (droplet) use docker-compose.prod.yml instead.
 
 services:
   mongodb:
@@ -22,6 +24,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  api:
+    build: .
+    container_name: workorder_api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      # Inside Docker, the database is reached by its service name, not localhost.
+      MONGODB_URI: mongodb://mongodb:27017/WorkOrderDB
+    ports:
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
 
 volumes:
   workorder_data:

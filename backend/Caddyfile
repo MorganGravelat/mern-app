@@ -1,0 +1,6 @@
+# SITE_ADDRESS comes from .env (see docker-compose.prod.yml).
+# A domain name gets a free Let's Encrypt certificate automatically; ":80" serves plain HTTP.
+{$SITE_ADDRESS}
+
+encode zstd gzip
+reverse_proxy api:5000
