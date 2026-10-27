@@ -24,7 +24,10 @@ db.createCollection('users', {
     $jsonSchema: {
       bsonType: 'object',
       required: ['firstName', 'lastName', 'login', 'email', 'password', 'role',
-                 'skills', 'phone', 'isAvailable', 'emailVerified', 'createdAt'],
+                 'skills', 'phone', 'isAvailable', 'emailVerified',
+                 'emailVerifyTokenHash', 'emailVerifyExpires',
+                 'passwordResetTokenHash', 'passwordResetExpires',
+                 'tokenVersion', 'createdAt'],
       additionalProperties: false,
       properties: {
         _id:           { bsonType: 'objectId' },
@@ -38,6 +41,11 @@ db.createCollection('users', {
         phone:         { bsonType: 'string' },
         isAvailable:   { bsonType: 'bool' },
         emailVerified: { bsonType: 'bool' },
+        emailVerifyTokenHash:   { bsonType: ['string', 'null'], description: 'SHA-256 of the emailed verification token' },
+        emailVerifyExpires:     { bsonType: ['date', 'null'] },
+        passwordResetTokenHash: { bsonType: ['string', 'null'], description: 'SHA-256 of the emailed reset token' },
+        passwordResetExpires:   { bsonType: ['date', 'null'] },
+        tokenVersion:  { bsonType: ['int', 'long', 'double'], minimum: 0, description: 'bumped on logout/reset to revoke JWTs' },
         createdAt:     { bsonType: 'date' }
       }
     }
@@ -122,6 +130,11 @@ function user(firstName, lastName, login, role, skills, phone, isAvailable, emai
     phone,
     isAvailable,
     emailVerified,
+    emailVerifyTokenHash: null,
+    emailVerifyExpires: null,
+    passwordResetTokenHash: null,
+    passwordResetExpires: null,
+    tokenVersion: NumberInt(0),
     createdAt: new Date(createdAt)
   };
 }

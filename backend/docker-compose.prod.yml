@@ -1,0 +1,51 @@
+# Server (droplet) setup: the API behind Caddy, which handles HTTPS.
+# The database is MongoDB Atlas (set MONGODB_URI in .env), so it isn't run here.
+#
+# Start / update:  docker compose -f docker-compose.prod.yml up -d --build
+# Logs:            docker compose -f docker-compose.prod.yml logs -f api
+# Stop:            docker compose -f docker-compose.prod.yml down
+#
+# No Atlas yet? Add `--profile local-db` to run MongoDB on the droplet instead,
+# and set MONGODB_URI=mongodb://mongodb:27017/WorkOrderDB in .env.
+
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    expose:
+      - "5000"   # only Caddy can reach it; the internet goes through Caddy
+
+  caddy:
+    image: docker.io/caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      # Your domain (e.g. api.example.com) for automatic HTTPS, or :80 for plain HTTP by IP.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  mongodb:
+    image: docker.io/mongo:7.0
+    profiles: ["local-db"]
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: WorkOrderDB
+    volumes:
+      - workorder_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+
+volumes:
+  caddy_data:
+  caddy_config:
+  workorder_data:
