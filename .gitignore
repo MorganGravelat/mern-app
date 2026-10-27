@@ -4,3 +4,15 @@ node_modules/
 !.env.example
 .DS_Store
 Thumbs.db
+
+# Editors, logs, and build output (for web/ and mobile/ later too)
+.vscode/
+.idea/
+*.log
+coverage/
+dist/
+build/
+
+# Personal files that stay on my computer
+STUDY_GUIDE.md
+docs/
