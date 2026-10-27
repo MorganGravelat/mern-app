@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
-// One item on a work order's checklist. Stored inside the work order
-// (embedded), because it never exists on its own.
+// A job on a work order's checklist. It's stored inside the work order
+// (embedded) because it never exists on its own.
 const checklistItemSchema = new mongoose.Schema(
   {
     task: { type: String, required: true, trim: true },
@@ -35,8 +35,8 @@ const workOrderSchema = new mongoose.Schema(
     },
     checklist: { type: [checklistItemSchema], default: [] },
 
-    // References to the users collection (the "foreign keys").
-    // .populate('createdBy assignedTo') swaps the ids for the full user documents.
+    // References to the users collection (like foreign keys).
+    // .populate('createdBy assignedTo') replaces the ids with the user documents.
     createdBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 
@@ -46,7 +46,7 @@ const workOrderSchema = new mongoose.Schema(
   {
     collection: 'workorders',
     versionKey: false,
-    timestamps: true // adds and maintains createdAt / updatedAt
+    timestamps: true // adds createdAt and updatedAt automatically
   }
 );
 

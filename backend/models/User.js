@@ -10,17 +10,29 @@ const userSchema = new mongoose.Schema(
     lastName:  { type: String, required: true, trim: true },
     login:     { type: String, required: true, unique: true, trim: true, minlength: 3 },
     email:     { type: String, required: true, unique: true, trim: true, lowercase: true },
-    password:  { type: String, required: true, select: false }, // bcrypt hash; never returned by default
+    password:  { type: String, required: true, select: false }, // bcrypt hash, not returned by default
     role: {
       type: String,
       enum: ['admin', 'dispatcher', 'technician'],
       default: 'technician'
     },
-    skills:        { type: [String], default: [] },   // e.g. ['network', 'hardware']; empty for non-technicians
-    phone:         { type: String, default: '', trim: true },
-    isAvailable:   { type: Boolean, default: true },  // dispatcher checks this before assigning
-    emailVerified: { type: Boolean, default: false }, // set true after the email verification link is clicked
-    createdAt:     { type: Date, default: Date.now }
+    skills: { type: [String], default: [] }, // e.g. ['network', 'hardware']
+    phone: { type: String, default: '', trim: true },
+    isAvailable: { type: Boolean, default: true }, // dispatcher checks this before assigning
+    emailVerified: { type: Boolean, default: false }, // true after they click the link in the email
+
+    // Tokens for email verification and password reset. We only save the
+    // SHA-256 hash, so a leaked database doesn't leak working links.
+    emailVerifyTokenHash:   { type: String, default: null, select: false },
+    emailVerifyExpires:     { type: Date,   default: null, select: false },
+    passwordResetTokenHash: { type: String, default: null, select: false },
+    passwordResetExpires:   { type: Date,   default: null, select: false },
+
+    // Put inside every JWT. Adding 1 (logout, password reset) makes all
+    // of the user's old tokens stop working.
+    tokenVersion: { type: Number, default: 0 },
+
+    createdAt: { type: Date, default: Date.now }
   },
   {
     collection: 'users',
@@ -28,13 +40,18 @@ const userSchema = new mongoose.Schema(
     toJSON: {
       transform(doc, ret) {
         delete ret.password;
+        delete ret.emailVerifyTokenHash;
+        delete ret.emailVerifyExpires;
+        delete ret.passwordResetTokenHash;
+        delete ret.passwordResetExpires;
+        delete ret.tokenVersion;
         return ret;
       }
     }
   }
 );
 
-// Hash the password whenever it's new or changed.
+// Hash the password when it's new or changed.
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, SALT_ROUNDS);
