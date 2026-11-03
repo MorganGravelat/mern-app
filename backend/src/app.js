@@ -8,6 +8,8 @@ const swaggerUi = require('swagger-ui-express');
 const YAML = require('yaml');
 const config = require('./config');
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const workOrderRoutes = require('./routes/workorders');
 const { notFound, errorHandler } = require('./middleware/errors');
 
 const openapi = YAML.parse(fs.readFileSync(path.join(__dirname, '..', 'openapi.yaml'), 'utf8'));
@@ -31,6 +33,8 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/workorders', workOrderRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
