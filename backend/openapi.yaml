@@ -12,6 +12,8 @@ servers:
     description: Local development
 tags:
   - name: Auth
+  - name: Work orders
+  - name: Users
   - name: System
 paths:
   /health:
@@ -156,6 +158,111 @@ paths:
             application/json:
               schema: { type: object, properties: { user: { $ref: '#/components/schemas/User' } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /workorders:
+    get:
+      tags: [Work orders]
+      summary: List work orders (newest first, at most 200)
+      description: |
+        Admins and dispatchers see every work order. A technician sees only the work orders
+        assigned to them. `q` searches the title and order number as plain text.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 }, description: Text to find in the title or order number }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/WorkOrderStatus' } }
+        - { name: priority, in: query, schema: { $ref: '#/components/schemas/WorkOrderPriority' } }
+      responses:
+        '200':
+          description: Matching work orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workOrders: { type: array, items: { $ref: '#/components/schemas/WorkOrder' } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Work orders]
+      summary: Create a work order (admin or dispatcher)
+      description: The new work order is always `pending` and unassigned. The server sets the order number and `createdBy`.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWorkOrderRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/WorkOrder' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /workorders/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, example: 65f000000000000000000001 } }
+    get:
+      tags: [Work orders]
+      summary: One work order
+      description: A technician gets 404 for a work order that is not assigned to them.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/WorkOrder' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Work orders]
+      summary: Edit, assign, change status or update the checklist
+      description: |
+        **Admin or dispatcher:** any of the fields below. `assignedTo` and `status` cannot be sent together.
+        Assigning a pending work order makes it `assigned`; reassigning an in-progress work order makes it
+        `assigned` again for the new technician (checklist progress is kept).
+
+        **Technician (own work orders only):** only `status` (`in_progress` or `completed`) and `checklist`
+        (tick items; tasks cannot be added, removed or renamed). Any other field returns 403.
+
+        Allowed status changes: pending -> cancelled; assigned -> in_progress or cancelled;
+        in_progress -> completed or cancelled. Completing needs every checklist item done (an empty
+        checklist is fine) and sets `completedAt`. Completed and cancelled work orders cannot be changed.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateWorkOrderRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/WorkOrder' }
+        '400': { description: 'Invalid input or not an available technician (codes VALIDATION_ERROR and INVALID_ASSIGNEE)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Illegal status change, unfinished checklist, or closed work order (codes INVALID_TRANSITION, CHECKLIST_INCOMPLETE and WORK_ORDER_CLOSED)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [Work orders]
+      summary: Delete a work order (admin or dispatcher)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /users/technicians:
+    get:
+      tags: [Users]
+      summary: Available technicians for the assignment list (admin or dispatcher)
+      description: Only the id, name and availability are returned.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Available technicians, sorted by name
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  technicians: { type: array, items: { $ref: '#/components/schemas/Technician' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -197,6 +304,79 @@ components:
         isAvailable: { type: boolean }
         emailVerified: { type: boolean }
         createdAt: { type: string, format: date-time }
+    Technician:
+      type: object
+      properties:
+        _id: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        isAvailable: { type: boolean }
+    PersonName:
+      type: object
+      properties:
+        _id: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+    WorkOrderStatus: { type: string, enum: [pending, assigned, in_progress, completed, cancelled] }
+    WorkOrderPriority: { type: string, enum: [low, medium, high, critical] }
+    WorkOrderCategory: { type: string, enum: [network, hardware, software, security, account] }
+    ChecklistItem:
+      type: object
+      required: [task, done]
+      properties:
+        task: { type: string, maxLength: 200, example: Check access point logs }
+        done: { type: boolean }
+    WorkOrder:
+      type: object
+      properties:
+        _id: { type: string }
+        orderNumber: { type: string, example: WO-1001 }
+        title: { type: string }
+        description: { type: string }
+        customerName: { type: string }
+        location: { type: string }
+        category: { $ref: '#/components/schemas/WorkOrderCategory' }
+        priority: { $ref: '#/components/schemas/WorkOrderPriority' }
+        status: { $ref: '#/components/schemas/WorkOrderStatus' }
+        checklist: { type: array, items: { $ref: '#/components/schemas/ChecklistItem' } }
+        createdBy: { $ref: '#/components/schemas/PersonName' }
+        assignedTo: { allOf: [{ $ref: '#/components/schemas/PersonName' }], nullable: true }
+        dueDate: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateWorkOrderRequest:
+      type: object
+      required: [title, category, dueDate]
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120, example: Wi-Fi keeps dropping }
+        description: { type: string, maxLength: 2000 }
+        customerName: { type: string, maxLength: 100 }
+        location: { type: string, maxLength: 200 }
+        category: { $ref: '#/components/schemas/WorkOrderCategory' }
+        priority: { $ref: '#/components/schemas/WorkOrderPriority' }
+        dueDate: { type: string, example: '2026-12-15', description: A date (2026-12-15) or date and time (2026-12-15T17:00:00Z) }
+        checklist:
+          type: array
+          maxItems: 20
+          items: { type: object, required: [task], properties: { task: { type: string, maxLength: 200 } } }
+    UpdateWorkOrderRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      description: Send only the fields to change. Technicians may send only `status` and `checklist`.
+      properties:
+        title: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+        customerName: { type: string, maxLength: 100 }
+        location: { type: string, maxLength: 200 }
+        category: { $ref: '#/components/schemas/WorkOrderCategory' }
+        priority: { $ref: '#/components/schemas/WorkOrderPriority' }
+        dueDate: { type: string, example: '2026-12-31' }
+        checklist: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/ChecklistItem' } }
+        status: { $ref: '#/components/schemas/WorkOrderStatus' }
+        assignedTo: { type: string, description: 'Id of an available technician (staff only; not together with status)' }
     Error:
       type: object
       properties:
@@ -231,3 +411,14 @@ components:
     Unauthorized:
       description: Missing, invalid, or revoked token
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Your role may not do this (code FORBIDDEN)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: No such work order, or it is not assigned to you (code NOT_FOUND)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    WorkOrder:
+      description: The work order
+      content:
+        application/json:
+          schema: { type: object, properties: { workOrder: { $ref: '#/components/schemas/WorkOrder' } } }
