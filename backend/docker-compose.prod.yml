@@ -1,4 +1,4 @@
-# Server (droplet) setup: the API behind Caddy, which handles HTTPS.
+# Server (droplet) setup: the API and the website behind Caddy, which handles HTTPS.
 # The database is MongoDB Atlas (set MONGODB_URI in .env), so it isn't run here.
 #
 # Start / update:  docker compose -f docker-compose.prod.yml up -d --build
@@ -18,8 +18,14 @@ services:
     expose:
       - "5000"   # only Caddy can reach it; the internet goes through Caddy
 
+  # Caddy serves the React website and forwards /api to the api container.
   caddy:
-    image: docker.io/caddy:2
+    build:
+      context: ..
+      dockerfile: backend/Caddy.Dockerfile
+      args:
+        # The website calls the API at the same address it was loaded from (PUBLIC_URL in .env).
+        VITE_API_BASE_URL: ${PUBLIC_URL:-}
     restart: unless-stopped
     ports:
       - "80:80"
