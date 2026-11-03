@@ -16,3 +16,10 @@ build/
 # Personal files that stay on my computer
 STUDY_GUIDE.md
 docs/
+
+# Local AI instructions and learning plans (never force-add these)
+/CLAUDE.md
+/.claude/
+/.github/copilot-instructions.md
+/PROJECT_PLAN.local.md
+/COPILOT_PROMPTS.local.md
