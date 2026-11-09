@@ -82,8 +82,3 @@ flutter analyze               # needs the Flutter SDK, see mobile/README.md
 flutter test
 ```
 
-The tests use a throwaway in-memory MongoDB, which is downloaded automatically the first time. They don't touch your Docker database. GitHub Actions runs them on every push (`.github/workflows/backend-tests.yml`).
-
-## Deploy
-
-See [docs/DEPLOY.md](docs/DEPLOY.md).
