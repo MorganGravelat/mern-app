@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SelectField } from './SelectField'
 import { useApiData } from '../hooks/useApiData'
-import { isFinalStatus, personName, type Technician, type WorkOrder } from '../workOrders/types'
+import { isFinalStatus, technicianLabel, type Technician, type WorkOrder } from '../workOrders/types'
 
 interface AssignFormProps {
   order: WorkOrder
@@ -16,7 +16,12 @@ export function AssignForm({ order, busy, onAssign }: AssignFormProps) {
 
   if (isFinalStatus(order.status)) return null
 
-  const options = (data?.technicians ?? []).map((t) => ({ value: t._id, label: personName(t) }))
+  // The API sorts by active job count ascending, so the first technician has the
+  // lightest workload and is the one we recommend to the dispatcher.
+  const options = (data?.technicians ?? []).map((t, index) => ({
+    value: t._id,
+    label: technicianLabel(t, index === 0),
+  }))
   const verb = order.assignedTo ? 'Reassign' : 'Assign'
 
   return (

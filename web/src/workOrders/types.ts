@@ -44,6 +44,7 @@ export interface PersonName {
 
 export interface Technician extends PersonName {
   isAvailable: boolean
+  activeJobCount: number // jobs currently assigned or in progress; see GET /api/users/technicians
 }
 
 export interface WorkOrder {
@@ -77,6 +78,15 @@ export function isFinalStatus(status: Status): boolean {
 
 export function personName(person: PersonName | null, emptyText = 'Unassigned'): string {
   return person ? `${person.firstName} ${person.lastName}` : emptyText
+}
+
+// Label for the assignment dropdown, e.g. "Sofia Ramirez · 1 active job · Recommended".
+// The API already sorts technicians by active job count (fewest first), so the first
+// one in the list is the one with the lightest workload.
+export function technicianLabel(technician: Technician, isLightestWorkload: boolean): string {
+  const jobWord = technician.activeJobCount === 1 ? 'active job' : 'active jobs'
+  const recommendation = isLightestWorkload ? ' · Recommended' : ''
+  return `${personName(technician)} · ${technician.activeJobCount} ${jobWord}${recommendation}`
 }
 
 // Due dates are stored at midnight UTC, so show them in UTC to avoid "yesterday" in US time zones.

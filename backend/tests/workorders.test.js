@@ -516,7 +516,7 @@ describe('DELETE /api/workorders/:id', () => {
 });
 
 describe('GET /api/users/technicians', () => {
-  it('lists available technicians with only their id, name and availability', async () => {
+  it('lists available technicians with their id, name, availability and active job count', async () => {
     const { dispatcher, tech } = await people();
     await createUser('technician', { isAvailable: false, firstName: 'Away' });
     await createUser('admin');
@@ -526,7 +526,37 @@ describe('GET /api/users/technicians', () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.technicians.length, 2); // tech and otherTech; not the unavailable one or the admin
     const found = res.body.technicians.find((t) => t._id === tech.user.id);
-    assert.deepEqual(Object.keys(found).sort(), ['_id', 'firstName', 'isAvailable', 'lastName']);
+    assert.deepEqual(Object.keys(found).sort(), ['_id', 'activeJobCount', 'firstName', 'isAvailable', 'lastName']);
+    assert.equal(found.activeJobCount, 0); // no jobs assigned yet
+  });
+
+  it('counts assigned and in-progress jobs, but not completed or cancelled ones', async () => {
+    const { dispatcher, tech } = await people();
+    await makeOrder(dispatcher.user, { status: 'assigned', assignedTo: tech.user._id });
+    await makeOrder(dispatcher.user, { status: 'in_progress', assignedTo: tech.user._id });
+    await makeOrder(dispatcher.user, { status: 'completed', assignedTo: tech.user._id, completedAt: new Date() });
+    await makeOrder(dispatcher.user, { status: 'cancelled', assignedTo: tech.user._id });
+    await makeOrder(dispatcher.user, { status: 'pending' }); // unassigned, should not count toward anyone
+
+    const res = await api.get('/api/users/technicians').set(bearer(dispatcher.token));
+
+    const found = res.body.technicians.find((t) => t._id === tech.user.id);
+    assert.equal(found.activeJobCount, 2);
+  });
+
+  it('puts the technician with the fewest active jobs first, ties broken alphabetically', async () => {
+    const { dispatcher, tech, otherTech } = await people();
+    // tech has 2 active jobs, otherTech has 1: otherTech should be recommended (listed first).
+    await makeOrder(dispatcher.user, { status: 'assigned', assignedTo: tech.user._id });
+    await makeOrder(dispatcher.user, { status: 'in_progress', assignedTo: tech.user._id });
+    await makeOrder(dispatcher.user, { status: 'assigned', assignedTo: otherTech.user._id });
+
+    const res = await api.get('/api/users/technicians').set(bearer(dispatcher.token));
+
+    assert.deepEqual(
+      res.body.technicians.map((t) => t._id),
+      [otherTech.user.id, tech.user.id]
+    );
   });
 
   it('refuses technicians and requires a login', async () => {

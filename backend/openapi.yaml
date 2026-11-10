@@ -250,11 +250,15 @@ paths:
     get:
       tags: [Users]
       summary: Available technicians for the assignment list (admin or dispatcher)
-      description: Only the id, name and availability are returned.
+      description: >-
+        Only the id, name, availability and active job count are returned.
+        `activeJobCount` counts work orders currently assigned to or in progress with that
+        technician (completed and cancelled jobs don't count).
       security: [{ bearerAuth: [] }]
       responses:
         '200':
-          description: Available technicians, sorted by name
+          description: >-
+            Available technicians, sorted by active job count (fewest first), then by name
           content:
             application/json:
               schema:
@@ -311,6 +315,9 @@ components:
         firstName: { type: string }
         lastName: { type: string }
         isAvailable: { type: boolean }
+        activeJobCount:
+          type: integer
+          description: Work orders currently assigned to or in progress with this technician.
     PersonName:
       type: object
       properties:

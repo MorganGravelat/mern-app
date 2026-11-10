@@ -232,7 +232,7 @@ describe('work order detail for a technician', () => {
 })
 
 describe('work order detail for staff', () => {
-  const technicians = { technicians: [{ _id: TECH_ID, firstName: 'Morgan', lastName: 'Johnson', isAvailable: true }] }
+  const technicians = { technicians: [{ _id: TECH_ID, firstName: 'Morgan', lastName: 'Johnson', isAvailable: true, activeJobCount: 0 }] }
 
   it('assigns a technician from the list', async () => {
     const server = serverFor(fakeWorkOrder())
@@ -244,13 +244,39 @@ describe('work order detail for staff', () => {
 
     const assignButton = await screen.findByRole('button', { name: 'Assign' })
     expect(assignButton).toBeDisabled() // nothing chosen yet
-    await screen.findByRole('option', { name: 'Morgan Johnson' })
+    await screen.findByRole('option', { name: 'Morgan Johnson · 0 active jobs · Recommended' })
     await user.selectOptions(screen.getByLabelText('Technician'), TECH_ID)
     await user.click(assignButton)
 
     expect(await screen.findByText('Assigned', { selector: '.badge' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reassign' })).toBeInTheDocument()
     expect(requestBody(callsTo(fetchMock, 'PATCH', `/api/workorders/${ORDER_ID}`)[0][1] as RequestInit)).toEqual({ assignedTo: TECH_ID })
+  })
+
+  it('recommends the technician with the fewest active jobs, in the order the API returns', async () => {
+    const otherId = '65f0000000000000000000b2'
+    // The API already sorts by workload (fewest first), so Morgan (busier) listed first here
+    // would be a bug; the dropdown must simply trust the API's order, not re-sort client-side.
+    const busyFirst = {
+      technicians: [
+        { _id: TECH_ID, firstName: 'Morgan', lastName: 'Johnson', isAvailable: true, activeJobCount: 3 },
+        { _id: otherId, firstName: 'Sofia', lastName: 'Ramirez', isAvailable: true, activeJobCount: 1 },
+      ],
+    }
+    await openAs('dispatcher', `/workorders/${ORDER_ID}`, {
+      [`GET /api/workorders/${ORDER_ID}`]: () => jsonResponse(200, { workOrder: fakeWorkOrder() }),
+      'GET /api/users/technicians': () => jsonResponse(200, busyFirst),
+    })
+
+    const select = await screen.findByLabelText('Technician')
+    const optionLabels = within(select)
+      .getAllByRole('option')
+      .map((option) => option.textContent)
+    expect(optionLabels).toEqual([
+      'Choose a technician',
+      'Morgan Johnson · 3 active jobs · Recommended', // first in the API's order, even though busier
+      'Sofia Ramirez · 1 active job',
+    ])
   })
 
   it('asks for confirmation before deleting and only deletes after "Yes"', async () => {
