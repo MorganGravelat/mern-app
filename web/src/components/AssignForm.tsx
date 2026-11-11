@@ -6,12 +6,12 @@ import { isFinalStatus, technicianLabel, type Technician, type WorkOrder } from 
 interface AssignFormProps {
   order: WorkOrder
   busy: boolean
-  onAssign: (technicianId: string) => void
+  onAssign: (technicianId: string) => Promise<void>
 }
 
 // Staff only. The list comes from GET /api/users/technicians (available technicians).
 export function AssignForm({ order, busy, onAssign }: AssignFormProps) {
-  const { data, error, loading } = useApiData<{ technicians: Technician[] }>('/api/users/technicians')
+  const { data, error, loading, reload } = useApiData<{ technicians: Technician[] }>('/api/users/technicians')
   const [chosen, setChosen] = useState('')
 
   if (isFinalStatus(order.status)) return null
@@ -30,7 +30,11 @@ export function AssignForm({ order, busy, onAssign }: AssignFormProps) {
       aria-label={`${verb} technician`}
       onSubmit={(event) => {
         event.preventDefault()
-        if (chosen) onAssign(chosen)
+        if (!chosen) return
+        // Refresh the workload counts right after assigning, so the newly assigned
+        // technician's active job count (and the "Recommended" tag) update live
+        // instead of staying on the numbers that were loaded when the form opened.
+        void onAssign(chosen).then(reload)
       }}
     >
       <h2>{verb} technician</h2>

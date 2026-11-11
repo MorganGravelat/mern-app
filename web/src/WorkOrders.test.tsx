@@ -279,6 +279,29 @@ describe('work order detail for staff', () => {
     ])
   })
 
+  it('reloads the technician workload counts right after assigning', async () => {
+    const server = serverFor(fakeWorkOrder())
+    let technicianRequests = 0
+    // First load: Morgan has 0 jobs. After the assignment PATCH, the dropdown should
+    // refetch and see Morgan now has 1 (the API would reflect the just-saved assignment).
+    const { user } = await openAs('dispatcher', `/workorders/${ORDER_ID}`, {
+      [`GET /api/workorders/${ORDER_ID}`]: server.get,
+      [`PATCH /api/workorders/${ORDER_ID}`]: server.patch,
+      'GET /api/users/technicians': () => {
+        technicianRequests += 1
+        const activeJobCount = technicianRequests === 1 ? 0 : 1
+        return jsonResponse(200, { technicians: [{ _id: TECH_ID, firstName: 'Morgan', lastName: 'Johnson', isAvailable: true, activeJobCount }] })
+      },
+    })
+
+    await screen.findByRole('option', { name: 'Morgan Johnson · 0 active jobs · Recommended' })
+    await user.selectOptions(screen.getByLabelText('Technician'), TECH_ID)
+    await user.click(screen.getByRole('button', { name: 'Assign' }))
+
+    expect(await screen.findByRole('option', { name: 'Morgan Johnson · 1 active job · Recommended' })).toBeInTheDocument()
+    expect(technicianRequests).toBe(2) // once on load, once after the assignment
+  })
+
   it('asks for confirmation before deleting and only deletes after "Yes"', async () => {
     const { user, fetchMock } = await openAs('admin', `/workorders/${ORDER_ID}`, {
       [`GET /api/workorders/${ORDER_ID}`]: () => jsonResponse(200, { workOrder: fakeWorkOrder() }),

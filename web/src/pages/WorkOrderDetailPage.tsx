@@ -174,7 +174,7 @@ function WorkOrderDetail({ order, onChange }: { order: WorkOrder; onChange: (ord
 
       {staff && (
         <>
-          <AssignForm order={order} busy={busy} onAssign={(technicianId) => void update({ assignedTo: technicianId })} />
+          <AssignForm order={order} busy={busy} onAssign={(technicianId) => update({ assignedTo: technicianId })} />
 
           <section className="card" aria-labelledby="danger-heading">
             <h2 id="danger-heading">Cancel or delete</h2>
