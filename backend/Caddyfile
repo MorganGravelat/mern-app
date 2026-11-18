@@ -1,0 +1,20 @@
+# SITE_ADDRESS comes from .env (see docker-compose.prod.yml).
+# A domain name gets a free Let's Encrypt certificate automatically; ":80" serves plain HTTP.
+{$SITE_ADDRESS}
+
+encode zstd gzip
+
+# API requests go to the Express container.
+handle /api/* {
+	reverse_proxy api:5000
+}
+
+# Everything else is the React website (built into /srv by Caddy.Dockerfile).
+handle {
+	root * /srv
+	# Vite puts a content hash in asset file names, so browsers may cache them for a year.
+	header /assets/* Cache-Control "public, max-age=31536000, immutable"
+	# Pages like /login or /reset-password only exist in React Router, so send index.html.
+	try_files {path} /index.html
+	file_server
+}
