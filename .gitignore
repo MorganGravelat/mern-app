@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# Editors, logs, and build output (for web/ and mobile/ later too)
+.vscode/
+.idea/
+*.log
+coverage/
+dist/
+build/
+docs/
+
