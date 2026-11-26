@@ -2,7 +2,7 @@ const { WorkOrder } = require('../../models');
 const { ApiError } = require('../middleware/errors');
 
 const FIRST_ORDER_NUMBER = 1001;
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 10;
 
 // Highest number used so far (WO-1005 -> 1005). Compared as numbers, because as text "WO-999" sorts after "WO-1000".
 async function highestOrderNumber() {
