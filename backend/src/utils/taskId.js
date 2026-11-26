@@ -20,13 +20,21 @@ const FIRST_TASK_NUMBER = 100;
 // Atomically hands out the next global task id: OF-101, OF-102, ...
 // $inc on a missing counter starts from 0, so the offset is applied here rather
 // than through a schema default (a default would conflict with $inc on upsert).
+// Two requests creating the counter at the same moment can both try to insert it;
+// the loser gets a duplicate key error and simply tries again (the counter exists now).
 async function nextTaskId() {
-  const result = await Counter.findOneAndUpdate(
-    { _id: TASK_ID_COUNTER },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true }
-  );
-  return `OF-${FIRST_TASK_NUMBER + result.seq}`;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const result = await Counter.findOneAndUpdate(
+        { _id: TASK_ID_COUNTER },
+        { $inc: { seq: 1 } },
+        { returnDocument: 'after', upsert: true }
+      );
+      return `OF-${FIRST_TASK_NUMBER + result.seq}`;
+    } catch (err) {
+      if (err.code !== 11000 || attempt >= 3) throw err;
+    }
+  }
 }
 
 // Gives every checklist item without a taskId a new one. Changes the items in place.
