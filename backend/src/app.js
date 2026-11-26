@@ -10,6 +10,7 @@ const config = require('./config');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const workOrderRoutes = require('./routes/workorders');
+const githubRoutes = require('./routes/github');
 const { notFound, errorHandler } = require('./middleware/errors');
 
 const openapi = YAML.parse(fs.readFileSync(path.join(__dirname, '..', 'openapi.yaml'), 'utf8'));
@@ -25,7 +26,16 @@ app.use('/api/docs', helmet({ contentSecurityPolicy: false }), swaggerUi.serve, 
 
 app.use(helmet());
 app.use(cors({ origin: config.corsOrigins.length ? config.corsOrigins : false }));
-app.use(express.json({ limit: '100kb' }));
+// JSON body parser. For the GitHub webhook, also capture the raw body so we
+// can verify the signature. Everything else still gets the parsed body only.
+app.use(express.json({
+  limit: '100kb',
+  verify: (req, _res, buf) => {
+    if (req.originalUrl === '/api/github/webhook') {
+      req.rawBody = buf;
+    }
+  }
+}));
 
 app.get('/api/health', (req, res) => {
   const db = mongoose.connection.readyState === 1 ? 'up' : 'down';
@@ -35,6 +45,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/workorders', workOrderRoutes);
+app.use('/api/github', githubRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
