@@ -41,6 +41,25 @@ function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// If every checklist item is done and the work order is not already
+// final (completed/cancelled), flip it to completed and record HOW
+// (autoInfo) in order.autoCompletedBy. Returns true if the WO was
+// auto-completed by this call, false otherwise. Does NOT save the
+// order — the caller does that.
+//
+// autoInfo must be an object like:
+//   { source: 'github-webhook', commitSha, commitAuthor,
+//     commitMessage, repoFullName, at }
+function autoCompleteIfDone(order, autoInfo) {
+  if (isFinal(order.status)) return false;
+  if (!allChecklistDone(order.checklist)) return false;
+  if (order.checklist.length === 0) return false; // never auto-close an empty checklist
+  order.status = 'completed';
+  order.completedAt = new Date();
+  order.autoCompletedBy = autoInfo;
+  return true;
+}
+
 module.exports = {
   CATEGORIES,
   PRIORITIES,
@@ -51,5 +70,6 @@ module.exports = {
   isFinal,
   allChecklistDone,
   sameTasks,
-  escapeRegex
+  escapeRegex,
+  autoCompleteIfDone
 };
