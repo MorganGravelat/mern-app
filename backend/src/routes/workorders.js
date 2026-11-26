@@ -6,6 +6,7 @@ const { ApiError } = require('../middleware/errors');
 const { parse } = require('../middleware/validate');
 const { createWorkOrder } = require('../utils/orderNumber');
 const rules = require('../utils/workOrderRules');
+const { assignMissingTaskIds } = require('../utils/taskId');
 
 const router = express.Router();
 router.use(requireAuth); // every work order route needs a logged-in user
@@ -25,6 +26,11 @@ const text = (max) => z.string().trim().max(max);
 // Accepts 2026-11-05 or 2026-11-05T14:00:00Z and turns it into a Date.
 const dateInput = z.union([z.iso.date(), z.iso.datetime({ offset: true })]).transform((s) => new Date(s));
 const taskText = z.string().trim().min(1, 'Task cannot be empty').max(200);
+const githubRepoInput = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/, 'GitHub repo must look like owner/repo')
+  .nullable();
 
 const idParams = z.object({ id: objectId }).strict();
 
@@ -43,10 +49,18 @@ const createBody = z.object({
   category: z.enum(rules.CATEGORIES),
   priority: z.enum(rules.PRIORITIES).default('medium'),
   dueDate: dateInput,
-  checklist: z.array(z.object({ task: taskText }).strict()).max(20).default([])
+  checklist: z.array(z.object({ task: taskText }).strict()).max(20).default([]),
+  githubRepo: githubRepoInput.optional()
 }).strict();
 
-const checklistItems = z.array(z.object({ task: taskText, done: z.boolean() }).strict()).max(20);
+// taskId is allowed so the web app can echo the checklist back without losing the ids.
+const checklistItems = z.array(
+  z.object({
+    task: taskText,
+    done: z.boolean(),
+    taskId: z.string().regex(/^OF-\d+$/).nullable().optional()
+  }).strict()
+).max(20);
 
 const staffPatchBody = z.object({
   title: z.string().trim().min(1, 'Title cannot be empty').max(120),
@@ -58,7 +72,8 @@ const staffPatchBody = z.object({
   dueDate: dateInput,
   checklist: checklistItems,
   status: z.enum(rules.STATUSES),
-  assignedTo: objectId
+  assignedTo: objectId,
+  githubRepo: githubRepoInput
 }).partial().strict()
   .refine((body) => Object.keys(body).length > 0, 'Send at least one field to change')
   .refine((body) => !(body.assignedTo && body.status), 'Assign a technician and change the status in separate requests');
@@ -115,10 +130,35 @@ function changeStatus(order, newStatus) {
   order.status = newStatus;
 }
 
+// Works out the OF-XXX ids for a checklist sent by staff:
+// - an item keeps the taskId it was sent with only if that id is on this work order
+//   already (so a client can't copy or invent ids);
+// - an item that existed before task ids were introduced keeps having no id
+//   (matched by its task text; no migration of old checklists);
+// - every other item is new and gets the next id.
+async function withTaskIds(oldChecklist, newChecklist) {
+  const knownIds = new Set(oldChecklist.map((item) => item.taskId).filter(Boolean));
+  const tasksWithoutId = oldChecklist.filter((item) => !item.taskId).map((item) => item.task);
+  const added = [];
+  const checklist = newChecklist.map((item) => {
+    const result = { task: item.task, done: item.done, taskId: null };
+    if (item.taskId && knownIds.delete(item.taskId)) {
+      result.taskId = item.taskId;
+    } else if (tasksWithoutId.includes(item.task)) {
+      tasksWithoutId.splice(tasksWithoutId.indexOf(item.task), 1);
+    } else {
+      added.push(result);
+    }
+    return result;
+  });
+  await assignMissingTaskIds(added);
+  return checklist;
+}
+
 async function applyStaffChanges(order, changes) {
   const { assignedTo, status, checklist, ...fields } = changes;
   Object.assign(order, fields);
-  if (checklist) order.checklist = checklist;
+  if (checklist) order.checklist = await withTaskIds(order.checklist, checklist);
   if (assignedTo) await assign(order, assignedTo);
   if (status) changeStatus(order, status);
 }
@@ -129,7 +169,12 @@ function applyTechnicianChanges(order, changes) {
     if (!rules.sameTasks(order.checklist, checklist)) {
       throw new ApiError(403, 'FORBIDDEN', 'Technicians can only check items off, not add, remove or rename them');
     }
-    order.checklist = checklist;
+    // Carry the existing taskIds over (technicians can't change them).
+    order.checklist = checklist.map((item, i) => ({
+      task: item.task,
+      done: item.done,
+      taskId: order.checklist[i].taskId ?? null
+    }));
   }
   if (status) {
     if (!rules.TECHNICIAN_STATUSES.includes(status)) {
@@ -164,6 +209,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireRole('admin', 'dispatcher'), async (req, res) => {
   const fields = parse(createBody, req.body);
   const checklist = fields.checklist.map((item) => ({ task: item.task, done: false }));
+  await assignMissingTaskIds(checklist); // every new item gets its OF-XXX id
   const order = await createWorkOrder({ ...fields, checklist, createdBy: req.user._id });
   res.status(201).json({ workOrder: await order.populate(PEOPLE) });
 });

@@ -82,3 +82,50 @@ flutter analyze               # needs the Flutter SDK, see mobile/README.md
 flutter test
 ```
 
+
+## GitHub integration (optional)
+
+OpsFlow can auto-tick checklist items from GitHub commits. When a developer
+pushes a commit containing `Complete OF-102`, the task labelled `OF-102` on
+the linked work order is marked done. When every task on a work order is
+done, the work order auto-completes.
+
+### One-time setup per repo
+
+1. **Generate a shared secret:**
+   ```
+   openssl rand -hex 32
+   ```
+2. **Put it in the backend's `.env`:**
+   ```
+   GITHUB_WEBHOOK_SECRET=<the value from step 1>
+   ```
+   Restart the API: `docker compose restart api`.
+3. **Register the webhook in GitHub** (needs repo admin access):
+   - GitHub repo → **Settings** → **Webhooks** → **Add webhook**
+   - **Payload URL:** `https://<your-public-api-host>/api/github/webhook`
+   - **Content type:** `application/json`
+   - **Secret:** the same value from step 1
+   - **Which events:** Just the push event
+   - Click **Add webhook**. GitHub immediately sends a `ping`; a green check
+     next to it means the signature works.
+4. **On each work order you want to track:** in the "GitHub repo" field,
+   enter `owner/repo` (e.g. `MorganGravelat/mern-app`).
+
+### Writing commits that auto-tick tasks
+
+Each checklist item has an id like `OF-102` (shown next to the item on the
+work order page). In your commit message, write:
+
+```
+Complete OF-102
+```
+
+Case-insensitive. More than one per commit is fine, but each id needs its own
+`Complete` (`Complete OF-102, complete OF-103`).
+
+### Local testing without a public URL
+
+For local development use **ngrok** (`https://ngrok.com`) to tunnel
+`http://localhost:5000` to a public URL, then register that URL as the
+webhook in a test GitHub repo.

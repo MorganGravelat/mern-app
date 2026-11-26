@@ -136,7 +136,11 @@ describe('POST /api/workorders', () => {
     assert.equal(created.status, 'pending');
     assert.equal(created.assignedTo, null);
     assert.equal(created.createdBy._id, dispatcher.user.id);
-    assert.deepEqual(created.checklist, [{ task: 'Check access point', done: false }, { task: 'Update firmware', done: false }]);
+    // Every new checklist item gets the next OF-XXX task id (the counter starts at OF-101).
+    assert.deepEqual(created.checklist, [
+      { task: 'Check access point', done: false, taskId: 'OF-101' },
+      { task: 'Update firmware', done: false, taskId: 'OF-102' }
+    ]);
 
     const saved = await WorkOrder.findById(created._id);
     assert.equal(saved.title, 'Wi-Fi keeps dropping');

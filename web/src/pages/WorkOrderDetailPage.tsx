@@ -96,6 +96,14 @@ function WorkOrderDetail({ order, onChange }: { order: WorkOrder; onChange: (ord
           </p>
           <p className="subtitle">
             {order.customerName || 'No customer'} · {CATEGORY_LABELS[order.category]}
+            {order.githubRepo && (
+              <>
+                {' · '}
+                <a href={`https://github.com/${order.githubRepo}`} target="_blank" rel="noreferrer">
+                  {order.githubRepo}
+                </a>
+              </>
+            )}
           </p>
         </div>
         <Link to="/" className="button secondary-link">
@@ -135,7 +143,11 @@ function WorkOrderDetail({ order, onChange }: { order: WorkOrder; onChange: (ord
                       disabled={!canTick || busy}
                       onChange={() => toggleTask(index)}
                     />
-                    <span>{item.task}</span>
+                    <span>
+                      {item.taskId && <code className="task-id">{item.taskId}</code>}
+                      {item.taskId ? ' ' : ''}
+                      {item.task}
+                    </span>
                   </label>
                 </li>
               ))}

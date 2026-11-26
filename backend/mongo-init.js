@@ -79,8 +79,9 @@ db.createCollection('workorders', {
             required: ['task', 'done'],
             additionalProperties: false,
             properties: {
-              task: { bsonType: 'string' },
-              done: { bsonType: 'bool' }
+              task:   { bsonType: 'string' },
+              done:   { bsonType: 'bool' },
+              taskId: { bsonType: ['string', 'null'], pattern: '^OF-[0-9]+$' }
             }
           }
         },
@@ -89,7 +90,42 @@ db.createCollection('workorders', {
         dueDate:     { bsonType: 'date' },
         completedAt: { bsonType: ['date', 'null'], description: 'null until completed' },
         createdAt:   { bsonType: 'date' },
-        updatedAt:   { bsonType: 'date' }
+        updatedAt:   { bsonType: 'date' },
+        githubRepo: {
+          bsonType: ['string', 'null'],
+          pattern: '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$',
+          description: 'GitHub repo in owner/repo form; null until linked'
+        },
+        autoCompletedBy: {
+          bsonType: ['object', 'null'],
+          description: 'Set when the GitHub webhook auto-closed this WO; null otherwise',
+          required: ['source', 'commitSha', 'repoFullName', 'at'],
+          additionalProperties: false,
+          properties: {
+            source:        { enum: ['github-webhook'] },
+            commitSha:     { bsonType: 'string' },
+            commitAuthor:  { bsonType: 'string' },
+            commitMessage: { bsonType: 'string' },
+            repoFullName:  { bsonType: 'string' },
+            at:            { bsonType: 'date' }
+          }
+        }
+      }
+    }
+  },
+  validationLevel: 'strict',
+  validationAction: 'error'
+});
+
+db.createCollection('counters', {
+  validator: {
+    $jsonSchema: {
+      bsonType: 'object',
+      required: ['_id', 'seq'],
+      additionalProperties: false,
+      properties: {
+        _id: { bsonType: 'string', description: 'counter name, e.g. "taskId"' },
+        seq: { bsonType: ['int', 'long', 'double'], minimum: 0 }
       }
     }
   },
@@ -108,6 +144,7 @@ db.users.createIndex({ email: 1 }, { unique: true });
 db.workorders.createIndex({ orderNumber: 1 }, { unique: true });
 db.workorders.createIndex({ assignedTo: 1, status: 1 });  // "my open jobs" for a technician
 db.workorders.createIndex({ status: 1, priority: 1 });    // dispatcher queue
+db.workorders.createIndex({ githubRepo: 1 });             // GitHub webhook lookups
 
 // ---------------------------------------------------------------------------
 // 3. Test users

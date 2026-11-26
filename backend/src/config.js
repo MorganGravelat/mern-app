@@ -32,5 +32,8 @@ module.exports = {
 
   // Email. If RESEND_API_KEY is empty the emails are just printed in the log.
   resendApiKey: process.env.RESEND_API_KEY || '',
-  emailFrom: process.env.EMAIL_FROM || 'Work Orders <onboarding@resend.dev>'
+  emailFrom: process.env.EMAIL_FROM || 'Work Orders <onboarding@resend.dev>',
+
+  // Shared secret with the GitHub webhook. Empty means webhook is disabled.
+  githubWebhookSecret: process.env.GITHUB_WEBHOOK_SECRET || ''
 };
