@@ -25,6 +25,7 @@ interface FormValues {
   priority: Priority
   dueDate: string
   checklist: ChecklistItem[]
+  githubRepo: string
 }
 
 const emptyForm: FormValues = {
@@ -36,6 +37,7 @@ const emptyForm: FormValues = {
   priority: 'medium',
   dueDate: '',
   checklist: [],
+  githubRepo: '',
 }
 
 function valuesFromOrder(order: WorkOrder): FormValues {
@@ -48,6 +50,7 @@ function valuesFromOrder(order: WorkOrder): FormValues {
     priority: order.priority,
     dueDate: dateInputValue(order.dueDate),
     checklist: order.checklist,
+    githubRepo: order.githubRepo ?? '',
   }
 }
 
@@ -102,14 +105,19 @@ function WorkOrderForm({ initial, editingId }: { initial: FormValues; editingId?
     setError('')
     // Blank task boxes are ignored. When editing, tasks keep their "done" tick.
     const checklist = values.checklist.filter((item) => item.task.trim() !== '')
+    // A blank repo box means "not linked".
+    const githubRepo = values.githubRepo.trim() === '' ? null : values.githubRepo.trim()
     try {
       if (editingId) {
-        await authedRequest(`/api/workorders/${editingId}`, { method: 'PATCH', body: { ...values, checklist } })
+        await authedRequest(`/api/workorders/${editingId}`, {
+          method: 'PATCH',
+          body: { ...values, checklist, githubRepo },
+        })
         navigate(`/workorders/${editingId}`)
       } else {
         const created = await authedRequest<{ workOrder: WorkOrder }>('/api/workorders', {
           method: 'POST',
-          body: { ...values, checklist: checklist.map((item) => ({ task: item.task })) },
+          body: { ...values, checklist: checklist.map((item) => ({ task: item.task })), githubRepo },
         })
         navigate(`/workorders/${created.workOrder._id}`)
       }
@@ -149,6 +157,12 @@ function WorkOrderForm({ initial, editingId }: { initial: FormValues; editingId?
           options={PRIORITIES.map((p) => ({ value: p, label: p }))}
         />
         <Field label="Due date" type="date" value={values.dueDate} onChange={(e) => setField('dueDate', e.target.value)} required />
+        <Field
+          label="GitHub repo (optional, owner/repo)"
+          value={values.githubRepo}
+          onChange={(e) => setField('githubRepo', e.target.value)}
+          maxLength={100}
+        />
 
         <fieldset className="checklist-editor">
           <legend>Checklist</legend>

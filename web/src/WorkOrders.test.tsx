@@ -372,6 +372,7 @@ describe('create and edit forms', () => {
       priority: 'high',
       dueDate: '2026-12-15',
       checklist: [{ task: 'Check access point' }],
+      githubRepo: null, // blank repo box is sent as "not linked"
     })
   })
 

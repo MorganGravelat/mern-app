@@ -34,6 +34,16 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
 export interface ChecklistItem {
   task: string
   done: boolean
+  taskId?: string | null
+}
+
+export interface AutoCompletedBy {
+  source: 'github-webhook'
+  commitSha: string
+  commitAuthor: string
+  commitMessage: string
+  repoFullName: string
+  at: string
 }
 
 export interface PersonName {
@@ -64,6 +74,8 @@ export interface WorkOrder {
   completedAt: string | null
   createdAt: string
   updatedAt: string
+  githubRepo?: string | null
+  autoCompletedBy?: AutoCompletedBy | null
 }
 
 // Only used to decide which buttons to show. The API checks the role again on every request.
