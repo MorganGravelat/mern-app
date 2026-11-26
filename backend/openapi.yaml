@@ -15,6 +15,7 @@ tags:
   - name: Work orders
   - name: Users
   - name: System
+  - name: GitHub
 paths:
   /health:
     get:
@@ -317,6 +318,34 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /github/webhook:
+    post:
+      tags: [GitHub]
+      summary: GitHub push webhook
+      description: |
+        Receives push events from GitHub. Authenticated by the
+        `X-Hub-Signature-256` header (HMAC-SHA256 of the request body
+        using `GITHUB_WEBHOOK_SECRET`). For every commit, parses
+        `Complete OF-XXX` markers out of the commit message, marks
+        matching checklist items done, and auto-completes a work
+        order when every item is ticked.
+      security: []
+      parameters:
+        - in: header
+          name: X-GitHub-Event
+          schema: { type: string }
+          required: true
+        - in: header
+          name: X-Hub-Signature-256
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Accepted
+        '401':
+          description: Bad or missing signature
+        '400':
+          description: Malformed payload
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -391,6 +420,11 @@ components:
       properties:
         task: { type: string, maxLength: 200, example: Check access point logs }
         done: { type: boolean }
+        taskId:
+          type: string
+          nullable: true
+          pattern: '^OF-[0-9]+$'
+          description: Assigned by the server to new items; null on items created before task ids existed
     WorkOrder:
       type: object
       properties:
@@ -410,6 +444,21 @@ components:
         completedAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        githubRepo:
+          type: string
+          nullable: true
+          pattern: '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'
+          example: MorganGravelat/mern-app
+        autoCompletedBy:
+          type: object
+          nullable: true
+          properties:
+            source:        { type: string, enum: [github-webhook] }
+            commitSha:     { type: string }
+            commitAuthor:  { type: string }
+            commitMessage: { type: string }
+            repoFullName:  { type: string }
+            at:            { type: string, format: date-time }
     CreateWorkOrderRequest:
       type: object
       required: [title, category, dueDate]
@@ -426,6 +475,7 @@ components:
           type: array
           maxItems: 20
           items: { type: object, required: [task], properties: { task: { type: string, maxLength: 200 } } }
+        githubRepo: { type: string, nullable: true, pattern: '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$', example: MorganGravelat/mern-app }
     UpdateWorkOrderRequest:
       type: object
       minProperties: 1
@@ -442,6 +492,7 @@ components:
         checklist: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/ChecklistItem' } }
         status: { $ref: '#/components/schemas/WorkOrderStatus' }
         assignedTo: { type: string, description: 'Id of an available technician (staff only; not together with status)' }
+        githubRepo: { type: string, nullable: true, pattern: '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$', description: 'owner/repo to link (staff only); null unlinks' }
     Error:
       type: object
       properties:
